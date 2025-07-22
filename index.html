@@ -50,33 +50,19 @@
             </div>
             <div class="dashboard-card" id="open-debts-btn">
                 <div class="card-icon-wrapper bg-red-light text-red"><i class="fa-solid fa-hand-holding-dollar"></i></div>
-                <div class="card-text"><h3>سجل الديون</h3><p>تسجيل ومتابعة ديون العملاء</p></div>
+                <div class="card-text"><h3>سجل الديون (الكامل)</h3><p>تسجيل ومتابعة ديون العملاء</p></div>
+            </div>
+            <!-- بطاقة جديدة: ديون آخر 3 أشهر -->
+            <div class="dashboard-card" id="open-last-3-months-debts-btn">
+                <div class="card-icon-wrapper bg-orange-light text-orange"><i class="fa-solid fa-calendar-alt"></i></div>
+                <div class="card-text"><h3>ديون آخر 3 أشهر</h3><p>عرض الديون المستحقة حديثًا</p></div>
             </div>
             <div class="dashboard-card" id="open-shortages-btn">
                 <div class="card-icon-wrapper bg-orange-light text-orange"><i class="fa-solid fa-cart-shopping"></i></div>
                 <div class="card-text"><h3>الأصناف الناقصة</h3><p>متابعة وتسجيل النواقص</p></div>
             </div>
             
-            <div class="dashboard-card card-sync">
-                <div class="card-icon-wrapper bg-gray-light text-gray-dark"><i class="fab fa-github"></i></div>
-                <div class="card-text">
-                    <h3>المزامنة السحابية</h3>
-                    <div class="sync-controls">
-                        <div class="sync-status">
-                            <span id="sync-status-text">المزامنة متوقفة</span>
-                            <i id="sync-status-icon" class="fa-solid fa-power-off"></i>
-                        </div>
-                        <label class="switch">
-                            <input type="checkbox" id="auto-sync-toggle">
-                            <span class="slider round"></span>
-                        </label>
-                    </div>
-                </div>
-                <div class="manual-sync-buttons">
-                    <button id="github-save-btn" class="btn btn-icon-only" title="حفظ يدوي للسحابة"><i class="fa-solid fa-cloud-arrow-up"></i></button>
-                    <button id="github-load-btn" class="btn btn-icon-only" title="استعادة من السحابة"><i class="fa-solid fa-cloud-arrow-down"></i></button>
-                </div>
-            </div>
+            <!-- لا توجد بطاقة مزامنة سحابية (GitHub Sync) في هذا الإصدار -->
 
             <div class="dashboard-card" id="backup-data-btn">
                 <div class="card-icon-wrapper bg-gray-light text-gray-dark"><i class="fa-solid fa-download"></i></div>
@@ -105,11 +91,11 @@
         <main class="view-main"><div id="medicine-timeline-container" class="timeline-container"></div></main>
     </div>
 
-    <!-- شاشة إدارة الديون -->
+    <!-- شاشة إدارة الديون (الكاملة) -->
     <div id="debts-view" class="view">
         <header class="view-header">
             <button class="back-btn"><i class="fa-solid fa-arrow-right"></i></button>
-            <h2 class="title-red"><i class="fa-solid fa-hand-holding-dollar"></i> سجل الديون</h2>
+            <h2 class="title-red"><i class="fa-solid fa-hand-holding-dollar"></i> سجل الديون (الكامل)</h2>
             <div class="header-actions">
                 <button id="add-new-debt-btn" class="btn btn-red-action"><i class="fa-solid fa-plus"></i> إضافة دين جديد</button>
                 <button id="open-debt-archive-btn" class="btn btn-primary"><i class="fa-solid fa-trash-restore"></i> سلة المحذوفات</button>
@@ -119,6 +105,26 @@
             <div class="summary-bar"><h3>إجمالي الديون المستحقة: <span id="total-debts-amount">0.00 شيكل</span></h3></div>
             <div class="controls"><i class="fa-solid fa-search"></i><input type="search" id="search-debts-input" placeholder="ابحث عن عميل، مبلغ، تاريخ، أو ملاحظات..."></div>
             <div id="debt-list-container" class="debt-cards-container"></div>
+        </main>
+    </div>
+
+    <!-- شاشة ديون آخر 3 أشهر (الجديدة) -->
+    <div id="last-3-months-debts-view" class="view">
+        <header class="view-header">
+            <button class="back-btn"><i class="fa-solid fa-arrow-right"></i></button>
+            <h2 class="title-orange"><i class="fa-solid fa-calendar-alt"></i> ديون آخر 3 أشهر</h2>
+            <div class="header-actions">
+                <!-- يمكن أن نضيف زر إضافة دين هنا أيضاً إذا أردنا: -->
+                <!-- <button id="add-new-debt-3-months-btn" class="btn btn-red-action"><i class="fa-solid fa-plus"></i> إضافة دين جديد</button> -->
+                <div class="controls search-controls">
+                    <i class="fa-solid fa-search"></i>
+                    <input type="search" id="search-last-3-months-debts-input" placeholder="ابحث عن عميل، مبلغ، تاريخ..." dir="rtl">
+                </div>
+            </div>
+        </header>
+        <main class="view-main">
+            <div class="summary-bar"><h3>إجمالي الديون (آخر 3 أشهر): <span id="total-last-3-months-debts-amount">0.00 شيكل</span></h3></div>
+            <div id="last-3-months-debt-list-container" class="debt-cards-container"></div>
         </main>
     </div>
     
@@ -159,6 +165,7 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <!-- ملف الـ JavaScript الرئيسي للتطبيق كـ "module" -->
+    <script type="module" src="script.js"></script>
 </body>
 </html>

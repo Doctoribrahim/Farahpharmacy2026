@@ -1,7 +1,3 @@
-/* ========================================================== */
-/* === التصميم الجديد والاحترافي (Jul 2024) === */
-/* ========================================================== */
-
 :root {
     --primary-color: #3B5998;
     --primary-color-dark: #2f477a;
@@ -132,43 +128,7 @@ body {
 .card-text h3 { font-size: 1.25rem; font-weight: 700; margin: 0; }
 .card-text p { color: var(--text-secondary); font-size: 0.9rem; margin: 0; }
 
-/* بطاقة المزامنة التلقائية */
-.card-sync {
-    grid-column: span 1;
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: center;
-    gap: 1rem;
-}
-@media (min-width: 930px) {
-    .card-sync { grid-column: span 2; }
-}
-.sync-controls {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-}
-.sync-status {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: var(--text-secondary);
-}
-#sync-status-icon {
-    font-size: 1rem;
-    transition: color 0.3s ease, transform 0.3s ease;
-}
-#sync-status-icon.sync-on { color: var(--green); }
-#sync-status-icon.sync-off { color: var(--red); }
-#sync-status-icon.sync-pending { color: var(--orange); }
-#sync-status-icon.sync-in-progress { color: var(--primary-color); }
-
-.manual-sync-buttons { display: flex; gap: 0.5rem; }
-
-/* مفتاح التفعيل/الإلغاء (Toggle Switch) */
+/* مفتاح التفعيل/الإلغاء (Toggle Switch) - لا يستخدم بعد إزالة بطاقة المزامنة، ولكن تبقى الأنماط العامة */
 .switch { position: relative; display: inline-block; width: 50px; height: 28px; }
 .switch input { opacity: 0; width: 0; height: 0; }
 .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; }
@@ -190,6 +150,25 @@ input:checked + .slider:before { transform: translateX(22px); }
 .back-btn:hover { background-color: rgba(255,255,255,0.1); }
 .view-main { padding: 1.5rem; max-width: 900px; width: 100%; margin: 0 auto; flex-grow: 1; }
 .summary-bar { background-color: var(--red-light); color: var(--red); padding: 1rem 1.5rem; border-radius: var(--border-radius); margin-bottom: 1.5rem; text-align: center; font-weight: 700; border: 1px solid var(--red); }
+
+/* أنماط جديدة لملخص آخر 3 أشهر */
+.summary-bar-small {
+    background-color: var(--primary-color-light); /* لون مختلف قليلاً */
+    color: var(--primary-color); /* نص بلون أساسي */
+    padding: 0.75rem 1.25rem; /* حجم أصغر قليلاً */
+    border-radius: var(--border-radius);
+    margin-bottom: 1.5rem; /* حافظ على المسافة */
+    text-align: center;
+    font-weight: 700;
+    border: 1px solid var(--primary-color); /* حدود بلون أساسي */
+    font-size: 0.95rem; /* حجم خط أصغر قليلاً */
+}
+.summary-bar-small h3 {
+    margin: 0;
+    font-size: 1.15rem; /* حجم خط عنوان أصغر قليلاً */
+}
+
+
 .controls { position: relative; margin-bottom: 1.5rem; flex-grow: 1; }
 .search-controls { margin-bottom: 0; max-width: 300px; }
 .controls .fa-search { position: absolute; top: 50%; right: 1rem; transform: translateY(-50%); color: var(--text-secondary); }

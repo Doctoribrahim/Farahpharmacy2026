@@ -1,29 +1,42 @@
+// Import the functions you need from the SDKs you need using full URLs
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { 
+    getFirestore, 
+    collection, 
+    getDocs, 
+    addDoc, 
+    updateDoc, 
+    deleteDoc, 
+    doc, 
+    query, 
+    where, 
+    writeBatch, 
+    serverTimestamp,
+    setDoc 
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// Optionally import analytics if you intend to use it
+// import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js";
+
 document.addEventListener('DOMContentLoaded', () => {
 
-    // Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyBPS0hsov3pT7BrnLO-1T2RRkd2yTUU4pk",
-  authDomain: "doctoribrahim-5aa53.firebaseapp.com",
-  projectId: "doctoribrahim-5aa53",
-  storageBucket: "doctoribrahim-5aa53.firebasestorage.app",
-  messagingSenderId: "864152688454",
-  appId: "1:864152688454:web:e206b306e226d0c8daf747",
-  measurementId: "G-8D2JDQBGQM"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+    // ===== Firebase Configuration - Provided by the user =====
+    const firebaseConfig = {
+        apiKey: "AIzaSyBPS0hsov3pT7BrnLO-1T2RRkd2yTUU4pk",
+        authDomain: "doctoribrahim-5aa53.firebaseapp.com",
+        projectId: "doctoribrahim-5aa53",
+        storageBucket: "doctoribrahim-5aa53.firebasestorage.app",
+        messagingSenderId: "864152688454",
+        appId: "1:864152688454:web:e206b306e226d0c8daf747",
+        measurementId: "G-8D2JDQBGQM"
     };
 
-    const sitePassword = "2211";
+    // Initialize Firebase and Firestore
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    // const analytics = getAnalytics(app); // Uncomment if using analytics
+
+    const sitePassword = "2211"; // كلمة المرور الحالية للتطبيق (تذكر: هذه ليست مصادقة آمنة لـ Firebase)
 
     const elements = {
         passwordModal: document.getElementById('password-modal'),
@@ -32,18 +45,17 @@ const analytics = getAnalytics(app);
         passwordError: document.getElementById('password-error'),
         togglePasswordVisibility: document.getElementById('toggle-password-visibility'),
         allViewsAndIndicators: document.querySelectorAll('.view, #status-indicator'),
-        autoSyncToggle: document.getElementById('auto-sync-toggle'),
-        syncStatusIcon: document.getElementById('sync-status-icon'),
-        syncStatusText: document.getElementById('sync-status-text'),
         statusIndicator: document.getElementById('status-indicator'),
         statusText: document.getElementById('status-text'),
         dashboardView: document.getElementById('dashboard-view'),
         medicinesView: document.getElementById('medicines-view'),
         debtsView: document.getElementById('debts-view'),
+        last3MonthsDebtsView: document.getElementById('last-3-months-debts-view'), // جديد
         shortagesView: document.getElementById('shortages-view'),
         allViews: document.querySelectorAll('.view'),
         openMedicinesBtn: document.getElementById('open-medicines-btn'),
         openDebtsBtn: document.getElementById('open-debts-btn'),
+        openLast3MonthsDebtsBtn: document.getElementById('open-last-3-months-debts-btn'), // جديد
         openShortagesBtn: document.getElementById('open-shortages-btn'),
         backButtons: document.querySelectorAll('.back-btn'),
         backupDataBtn: document.getElementById('backup-data-btn'),
@@ -51,11 +63,14 @@ const analytics = getAnalytics(app);
         importFileInput: document.getElementById('import-file-input'),
         medicineTimelineContainer: document.getElementById('medicine-timeline-container'),
         debtListContainer: document.getElementById('debt-list-container'),
+        last3MonthsDebtListContainer: document.getElementById('last-3-months-debt-list-container'), // جديد
         shortageListContainer: document.getElementById('shortage-list-container'),
         searchDebtsInput: document.getElementById('search-debts-input'),
+        searchLast3MonthsDebtsInput: document.getElementById('search-last-3-months-debts-input'), // جديد
         searchMedicinesInput: document.getElementById('search-medicines-input'),
         searchShortagesInput: document.getElementById('search-shortages-input'),
         totalDebtsAmountEl: document.getElementById('total-debts-amount'),
+        totalLast3MonthsDebtsAmountEl: document.getElementById('total-last-3-months-debts-amount'), // جديد
         addMedicineModal: document.getElementById('add-medicine-modal'),
         addMedicineForm: document.getElementById('add-medicine-form'),
         showAddMedicineModalBtn: document.getElementById('show-add-medicine-modal-btn'),
@@ -71,8 +86,6 @@ const analytics = getAnalytics(app);
         paymentCustomerNameInput: document.getElementById('payment-customer-name'),
         paymentCustomerDisplay: document.getElementById('payment-customer-display'),
         closeButtons: document.querySelectorAll('.close-btn'),
-        githubSaveBtn: document.getElementById('github-save-btn'),
-        githubLoadBtn: document.getElementById('github-load-btn'),
         // Archive elements
         debtArchiveModal: document.getElementById('debt-archive-modal'),
         openDebtArchiveBtn: document.getElementById('open-debt-archive-btn'),
@@ -80,12 +93,11 @@ const analytics = getAnalytics(app);
         clearArchiveBtn: document.getElementById('clear-archive-btn'),
     };
 
+    // سنقوم بتخزين البيانات محليًا هنا بعد تحميلها من Firestore
     let medicines = [];
     let debts = [];
     let shortages = [];
     let archivedDebts = [];
-    let debounceTimer;
-    let isAutoSyncEnabled = localStorage.getItem('autoSyncEnabled') === 'true';
 
     const showStatus = (text) => {
         elements.statusText.textContent = text;
@@ -94,13 +106,14 @@ const analytics = getAnalytics(app);
     const hideStatus = () => {
         elements.statusIndicator.classList.add('hidden');
     };
-    const saveData = () => {
+    
+    const updateLocalDataCache = () => {
         localStorage.setItem('medicines', JSON.stringify(medicines));
         localStorage.setItem('debts', JSON.stringify(debts));
         localStorage.setItem('shortages', JSON.stringify(shortages));
         localStorage.setItem('archivedDebts', JSON.stringify(archivedDebts));
-        triggerAutoSave();
     };
+
     const showView = (viewToShow) => {
         elements.allViews.forEach(view => view.classList.remove('active-view'));
         viewToShow.classList.add('active-view');
@@ -169,35 +182,50 @@ const analytics = getAnalytics(app);
         elements.medicineTimelineContainer.innerHTML = html;
     };
 
-    const archiveSettledDebts = () => {
+    const archiveSettledDebts = async () => {
         const customerDebtsMap = debts.reduce((acc, debt) => {
             acc[debt.customer] = acc[debt.customer] || [];
             acc[debt.customer].push(debt);
             return acc;
         }, {});
 
+        let batch = writeBatch(db);
         let aChangeWasMade = false;
-        Object.keys(customerDebtsMap).forEach(customer => {
+        
+        for (const customer in customerDebtsMap) {
             const customerTotal = customerDebtsMap[customer].reduce((sum, debt) => sum + parseFloat(debt.amount), 0);
             if (customerTotal <= 0) {
                 const transactionsToArchive = debts.filter(d => d.customer === customer);
-                transactionsToArchive.forEach(t => {
-                    t.archiveReason = 'تمت التسوية بالكامل';
-                    t.archiveDate = new Date().toISOString();
-                });
-                archivedDebts.push(...transactionsToArchive);
-                debts = debts.filter(d => d.customer !== customer);
+                for (const t of transactionsToArchive) {
+                    const archivedDocRef = doc(collection(db, 'archivedDebts')); // Firestore generates ID for new doc
+                    batch.set(archivedDocRef, {
+                        ...t,
+                        archiveReason: 'تمت التسوية بالكامل',
+                        archiveDate: serverTimestamp()
+                    });
+                    const debtDocRef = doc(db, 'debts', t.id); // Reference to the original debt document
+                    batch.delete(debtDocRef);
+                }
                 aChangeWasMade = true;
             }
-        });
+        }
+
         if (aChangeWasMade) {
-            saveData();
+            showStatus('جارٍ أرشفة الديون المسددة...');
+            try {
+                await batch.commit();
+                console.log("Settled debts archived and deleted from debts collection.");
+                await loadInitialData(); // Re-load data after batch commit to refresh UI
+                hideStatus();
+            } catch (error) {
+                console.error("Error archiving settled debts: ", error);
+                alert("فشل أرشفة الديون المسددة.");
+                hideStatus();
+            }
         }
     };
 
     const renderDebts = (searchTerm = '') => {
-        archiveSettledDebts();
-
         elements.debtListContainer.innerHTML = '';
         const lowerSearchTerm = searchTerm.toLowerCase().trim();
         let grandTotal = 0;
@@ -263,6 +291,88 @@ const analytics = getAnalytics(app);
         elements.totalDebtsAmountEl.textContent = `${grandTotal.toFixed(2)} شيكل`;
     };
 
+    // دالة مساعدة لتحديد ما إذا كان التاريخ يقع ضمن آخر 3 أشهر
+    const isWithinLast3Months = (dateString) => {
+        const debtDate = new Date(dateString);
+        const today = new Date();
+        const threeMonthsAgo = new Date();
+        threeMonthsAgo.setMonth(today.getMonth() - 3);
+        threeMonthsAgo.setDate(1); // Start from the beginning of the month 3 months ago
+        threeMonthsAgo.setHours(0, 0, 0, 0);
+
+        // Ensure the debtDate is not in the future and is within the last 3 months
+        return debtDate <= today && debtDate >= threeMonthsAgo;
+    };
+
+    const renderLast3MonthsDebts = (searchTerm = '') => {
+        elements.last3MonthsDebtListContainer.innerHTML = '';
+        const lowerSearchTerm = searchTerm.toLowerCase().trim();
+        let grandTotal = 0;
+
+        // تصفية الديون لآخر 3 أشهر أولاً
+        const recentDebts = debts.filter(debt => isWithinLast3Months(debt.date));
+        
+        const customerDebtsMap = recentDebts.reduce((acc, debt) => {
+            acc[debt.customer] = acc[debt.customer] || [];
+            acc[debt.customer].push(debt);
+            return acc;
+        }, {});
+
+        let filteredCustomers = Object.keys(customerDebtsMap);
+        if(lowerSearchTerm) {
+            filteredCustomers = filteredCustomers.filter(customerName => {
+                if (customerName.toLowerCase().includes(lowerSearchTerm)) return true;
+                return customerDebtsMap[customerName].some(debt =>
+                    String(parseFloat(debt.amount).toFixed(2)).includes(lowerSearchTerm) ||
+                    debt.date.includes(lowerSearchTerm) ||
+                    (debt.details && debt.details.toLowerCase().includes(lowerSearchTerm))
+                );
+            });
+        }
+
+        if (filteredCustomers.length === 0) {
+            elements.last3MonthsDebtListContainer.innerHTML = `<p class="empty-state">${searchTerm ? 'لا توجد نتائج مطابقة لآخر 3 أشهر.' : 'لا توجد ديون نشطة في آخر 3 أشهر حالياً.'}</p>`;
+            elements.totalLast3MonthsDebtsAmountEl.textContent = `0.00 شيكل`;
+            return;
+        }
+        
+        const sortedCustomers = filteredCustomers.sort((a,b) => a.localeCompare(b));
+
+        let html = sortedCustomers.map(customer => {
+            const history = customerDebtsMap[customer].sort((a, b) => new Date(a.date) - new Date(b.date));
+            const customerTotal = history.reduce((sum, debt) => sum + parseFloat(debt.amount), 0);
+            grandTotal += customerTotal;
+            const transactionsHTML = history.map(debt => {
+                const amount = parseFloat(debt.amount);
+                const isPayment = amount < 0;
+                return `<li class="debt-transaction-item">
+                            <div class="transaction-info">
+                                <span class="transaction-amount ${isPayment ? 'payment' : 'debt'}">${isPayment ? '' : '+'}${amount.toFixed(2)} شيكل</span>
+                                <span class="transaction-date">${debt.date}</span>
+                                ${debt.details ? `<div class="transaction-details">${debt.details}</div>` : ''}
+                            </div>
+                            <div class="item-actions">
+                                <button class="btn-icon delete delete-debt-btn" data-id="${debt.id}" title="نقل للأرشيف"><i class="fa-solid fa-archive"></i></button>
+                            </div>
+                        </li>`;
+            }).join('');
+            
+            return `<div class="debt-card">
+                        <div class="debt-card-header">
+                            <div class="customer-info"><h3>${customer}</h3><div class="customer-balance">${customerTotal.toFixed(2)} شيكل</div></div>
+                            <div class="debt-card-actions">
+                                <button class="btn btn-red-action btn-add-debt-for-customer" data-customer="${customer}" title="إضافة دين جديد"><i class="fa-solid fa-plus"></i> دين</button>
+                                <button class="btn btn-green-action btn-add-payment" data-customer="${customer}" title="تسجيل دفعة"><i class="fa-solid fa-hand-holding-dollar"></i> دفعة</button>
+                            </div>
+                        </div>
+                        <div class="debt-card-body"><ul class="debt-transaction-list">${transactionsHTML}</ul></div>
+                     </div>`;
+        }).join('');
+
+        elements.last3MonthsDebtListContainer.innerHTML = html;
+        elements.totalLast3MonthsDebtsAmountEl.textContent = `${grandTotal.toFixed(2)} شيكل`;
+    };
+
     const renderShortages = (searchTerm = '') => {
         elements.shortageListContainer.innerHTML = '';
         const lowerSearchTerm = searchTerm.toLowerCase().trim();
@@ -301,16 +411,22 @@ const analytics = getAnalytics(app);
             return;
         }
         
-        const sortedArchive = archivedDebts.sort((a, b) => new Date(b.archiveDate) - new Date(a.archiveDate));
+        const sortedArchive = archivedDebts.sort((a, b) => {
+            const dateA = a.archiveDate instanceof Date ? a.archiveDate : (a.archiveDate ? new Date(a.archiveDate) : new Date(0));
+            const dateB = b.archiveDate instanceof Date ? b.archiveDate : (b.archiveDate ? new Date(b.archiveDate) : new Date(0));
+            return dateB.getTime() - dateA.getTime();
+        });
+
         elements.debtArchiveList.innerHTML = sortedArchive.map(item => {
             const amount = parseFloat(item.amount);
             const isPayment = amount < 0;
+            const archiveDateDisplay = item.archiveDate instanceof Date ? item.archiveDate.toLocaleDateString('ar-EG') : 'تاريخ غير محدد';
             return `
             <div class="archive-item">
                 <div class="archive-item-info">
                     <h4>${item.customer}</h4>
                     <p><strong class="${isPayment ? 'text-green' : 'text-red'}">${isPayment ? 'دفعة: ' : 'دين: '}${Math.abs(amount).toFixed(2)} شيكل</strong> - بتاريخ: ${item.date}</p>
-                    <p class="archive-reason">سبب الأرشفة: ${item.archiveReason || 'غير محدد'} (${new Date(item.archiveDate).toLocaleDateString('ar-EG')})</p>
+                    <p class="archive-reason">سبب الأرشفة: ${item.archiveReason || 'غير محدد'} (${archiveDateDisplay})</p>
                 </div>
                 <div class="archive-item-actions">
                     <button class="btn btn-green-action restore-debt-btn" data-id="${item.id}"><i class="fa-solid fa-undo"></i> استعادة</button>
@@ -323,84 +439,10 @@ const analytics = getAnalytics(app);
     const renderAll = () => {
         renderMedicines(elements.searchMedicinesInput.value);
         renderDebts(elements.searchDebtsInput.value);
+        renderLast3MonthsDebts(elements.searchLast3MonthsDebtsInput.value); // جديد
         renderShortages(elements.searchShortagesInput.value);
     };
 
-    function setSyncStatus(status, text) {
-        elements.syncStatusIcon.className = 'fa-solid';
-        switch (status) {
-            case 'on': elements.syncStatusIcon.classList.add('fa-check', 'sync-on'); break;
-            case 'pending': elements.syncStatusIcon.classList.add('fa-floppy-disk', 'sync-pending'); break;
-            case 'in-progress': elements.syncStatusIcon.classList.add('fa-arrows-rotate', 'fa-spin', 'sync-in-progress'); break;
-            default: elements.syncStatusIcon.classList.add('fa-power-off', 'sync-off'); break;
-        }
-        elements.syncStatusText.textContent = text;
-    }
-
-    const handleGithubSave = async (isAuto = false) => {
-        if (!isAuto) showStatus('جارٍ حفظ البيانات...');
-        setSyncStatus('in-progress', 'جارٍ الحفظ...');
-        elements.githubSaveBtn.disabled = true;
-        
-        try {
-            const allData = { 
-                medicines: JSON.parse(localStorage.getItem('medicines')) || [],
-                debts: JSON.parse(localStorage.getItem('debts')) || [],
-                shortages: JSON.parse(localStorage.getItem('shortages')) || [],
-                archivedDebts: JSON.parse(localStorage.getItem('archivedDebts')) || []
-            };
-
-            if (allData.medicines.length === 0 && allData.debts.length === 0 && allData.shortages.length === 0 && allData.archivedDebts.length === 0) {
-                setSyncStatus('on', 'لا توجد بيانات للحفظ');
-                if (!isAuto) hideStatus();
-                elements.githubSaveBtn.disabled = false;
-                return;
-            }
-
-            const response = await fetch('/api/save-data', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...GITHUB_CONFIG, ...allData })
-            });
-
-            if (!response.ok) throw new Error((await response.json()).error || `Server error: ${response.statusText}`);
-
-            if (!isAuto) alert("تم حفظ البيانات بنجاح في السحابة!");
-            setSyncStatus(isAutoSyncEnabled ? 'on' : 'off', isAutoSyncEnabled ? 'كل شيء محدّث' : 'تم الحفظ يدوياً');
-        } catch (error) {
-            if (!isAuto) alert(`فشل حفظ البيانات: ${error.message}`);
-            setSyncStatus('pending', 'فشل الحفظ');
-        } finally {
-            if (!isAuto) hideStatus();
-            elements.githubSaveBtn.disabled = false;
-        }
-    };
-        
-    const handleGithubLoad = async () => {
-        if (!confirm('سيتم استبدال البيانات المحلية بالبيانات الموجودة في السحابة. هل أنت متأكد؟')) return;
-        elements.githubLoadBtn.disabled = true;
-        await loadInitialData({ showIndicators: true, showSuccessAlert: true, forceCloud: true });
-        elements.githubLoadBtn.disabled = false;
-    };
-
-    function triggerAutoSave() {
-        if (!isAutoSyncEnabled) return;
-        clearTimeout(debounceTimer);
-        setSyncStatus('pending', 'تغييرات لم تُحفظ');
-        debounceTimer = setTimeout(() => handleGithubSave(true), 3000);
-    }
-    
-    function setupAutoSync() {
-        elements.autoSyncToggle.checked = isAutoSyncEnabled;
-        setSyncStatus(isAutoSyncEnabled ? 'on' : 'off', isAutoSyncEnabled ? 'المزامنة فعّالة' : 'المزامنة متوقفة');
-        elements.autoSyncToggle.addEventListener('change', (e) => {
-            isAutoSyncEnabled = e.target.checked;
-            localStorage.setItem('autoSyncEnabled', isAutoSyncEnabled);
-            if (isAutoSyncEnabled) { setSyncStatus('on', 'المزامنة فعّالة'); triggerAutoSave(); }
-            else { setSyncStatus('off', 'المزامنة متوقفة'); clearTimeout(debounceTimer); }
-        });
-    }
-    
     function setupPermanentListeners() {
         elements.togglePasswordVisibility.addEventListener('click', () => {
             const isPassword = elements.passwordInput.type === 'password';
@@ -425,16 +467,18 @@ const analytics = getAnalytics(app);
 
     function setupAppListeners() {
         elements.openMedicinesBtn.addEventListener('click', () => showView(elements.medicinesView));
-        elements.openDebtsBtn.addEventListener('click', () => showView(elements.debtsView));
+        elements.openDebtsBtn.addEventListener('click', () => { showView(elements.debtsView); archiveSettledDebts(); }); 
+        elements.openLast3MonthsDebtsBtn.addEventListener('click', () => { showView(elements.last3MonthsDebtsView); renderLast3MonthsDebts(elements.searchLast3MonthsDebtsInput.value); }); // جديد
         elements.openShortagesBtn.addEventListener('click', () => showView(elements.shortagesView));
         elements.backButtons.forEach(btn => btn.addEventListener('click', () => showView(elements.dashboardView)));
         elements.closeButtons.forEach(btn => btn.addEventListener('click', (e) => closeModal(e.target.closest('.modal'))));
         
-        elements.githubSaveBtn.addEventListener('click', () => handleGithubSave(false));
-        elements.githubLoadBtn.addEventListener('click', handleGithubLoad);
         elements.backupDataBtn.addEventListener('click', () => {
              const allData = { medicines, debts, shortages, archivedDebts };
-             if (medicines.length === 0 && debts.length === 0 && shortages.length === 0 && archivedDebts.length === 0) return alert('لا توجد بيانات لعمل نسخة احتياطية.');
+             if (medicines.length === 0 && debts.length === 0 && shortages.length === 0 && archivedDebts.length === 0) {
+                alert('لا توجد بيانات لعمل نسخة احتياطية.');
+                return;
+             }
              const dataStr = JSON.stringify(allData, null, 2); 
              const blob = new Blob([dataStr], { type: 'application/json' }); 
              const url = URL.createObjectURL(blob); 
@@ -445,187 +489,414 @@ const analytics = getAnalytics(app);
         });
         elements.importDataBtn.addEventListener('click', () => elements.importFileInput.click());
 
-        elements.addMedicineForm.addEventListener('submit', (e) => { e.preventDefault(); medicines.push({ id: Date.now(), name: document.getElementById('med-name').value.trim(), barcode: document.getElementById('med-barcode').value, expiry: document.getElementById('med-expiry').value, price: parseFloat(document.getElementById('med-price').value) }); saveData(); renderAll(); closeModal(elements.addMedicineModal); e.target.reset(); });
-        
-        // === تطبيق الإصلاح على نموذج إضافة الدين ===
-        elements.addDebtForm.addEventListener('submit', (e) => { 
+        elements.addMedicineForm.addEventListener('submit', async (e) => { 
             e.preventDefault(); 
-            const rawCustomerName = document.getElementById('debt-customer').value;
-            const finalCustomerName = getCanonicalCustomerName(rawCustomerName);
-            debts.push({ id: Date.now(), customer: finalCustomerName, amount: Math.abs(parseFloat(document.getElementById('debt-amount').value)), date: document.getElementById('debt-date').value, details: document.getElementById('debt-details').value.trim() }); 
-            saveData(); 
-            renderAll(); 
-            closeModal(elements.addDebtModal); 
-            e.target.reset(); 
+            showStatus('جارٍ إضافة الدواء...');
+            const newMed = { 
+                name: document.getElementById('med-name').value.trim(), 
+                barcode: document.getElementById('med-barcode').value, 
+                expiry: document.getElementById('med-expiry').value, 
+                price: parseFloat(document.getElementById('med-price').value),
+                createdAt: serverTimestamp() 
+            };
+            try {
+                const docRef = await addDoc(collection(db, 'medicines'), newMed);
+                medicines.push({ id: docRef.id, ...newMed, createdAt: new Date() }); 
+                updateLocalDataCache();
+                renderAll(); 
+                closeModal(elements.addMedicineModal); 
+                e.target.reset(); 
+            } catch (error) {
+                console.error("Error adding medicine: ", error);
+                alert("فشل إضافة الدواء.");
+            } finally { hideStatus(); }
         });
         
-        elements.addShortageForm.addEventListener('submit', (e) => { e.preventDefault(); shortages.push({ id: Date.now(), name: document.getElementById('shortage-name').value.trim(), notes: document.getElementById('shortage-notes').value.trim(), purchased: false }); saveData(); renderAll(); closeModal(elements.addShortageModal); e.target.reset(); });
-        
-        // === تطبيق الإصلاح على نموذج إضافة الدفعة ===
-        elements.addPaymentForm.addEventListener('submit', (e) => { 
+        elements.addDebtForm.addEventListener('submit', async (e) => { 
             e.preventDefault(); 
+            showStatus('جارٍ إضافة الدين...');
+            const rawCustomerName = document.getElementById('debt-customer').value;
+            const finalCustomerName = getCanonicalCustomerName(rawCustomerName);
+            const newDebt = { 
+                customer: finalCustomerName, 
+                amount: Math.abs(parseFloat(document.getElementById('debt-amount').value)), 
+                date: document.getElementById('debt-date').value, 
+                details: document.getElementById('debt-details').value.trim(),
+                createdAt: serverTimestamp()
+            };
+            try {
+                const docRef = await addDoc(collection(db, 'debts'), newDebt);
+                debts.push({ id: docRef.id, ...newDebt, createdAt: new Date() });
+                updateLocalDataCache();
+                renderAll(); 
+                closeModal(elements.addDebtModal); 
+                e.target.reset(); 
+            } catch (error) {
+                console.error("Error adding debt: ", error);
+                alert("فشل إضافة الدين.");
+            } finally { hideStatus(); }
+        });
+        
+        elements.addShortageForm.addEventListener('submit', async (e) => { 
+            e.preventDefault(); 
+            showStatus('جارٍ إضافة الصنف الناقص...');
+            const newShortage = { 
+                name: document.getElementById('shortage-name').value.trim(), 
+                notes: document.getElementById('shortage-notes').value.trim(), 
+                purchased: false,
+                createdAt: serverTimestamp()
+            };
+            try {
+                const docRef = await addDoc(collection(db, 'shortages'), newShortage);
+                shortages.push({ id: docRef.id, ...newShortage, createdAt: new Date() });
+                updateLocalDataCache();
+                renderAll(); 
+                closeModal(elements.addShortageModal); 
+                e.target.reset(); 
+            } catch (error) {
+                console.error("Error adding shortage: ", error);
+                alert("فشل إضافة الصنف الناقص.");
+            } finally { hideStatus(); }
+        });
+        
+        elements.addPaymentForm.addEventListener('submit', async (e) => { 
+            e.preventDefault(); 
+            showStatus('جارٍ تسجيل الدفعة...');
             const rawCustomerName = elements.paymentCustomerNameInput.value;
             const finalCustomerName = getCanonicalCustomerName(rawCustomerName);
-            debts.push({ id: Date.now(), customer: finalCustomerName, amount: -Math.abs(parseFloat(document.getElementById('payment-amount').value)), date: document.getElementById('payment-date').value, details: document.getElementById('payment-details').value.trim() || 'دفعة نقدية' }); 
-            saveData(); 
-            renderAll(); 
-            closeModal(elements.addPaymentModal); 
-            e.target.reset(); 
+            const newPayment = { 
+                customer: finalCustomerName, 
+                amount: -Math.abs(parseFloat(document.getElementById('payment-amount').value)), // Payments are negative
+                date: document.getElementById('payment-date').value, 
+                details: document.getElementById('payment-details').value.trim() || 'دفعة نقدية',
+                createdAt: serverTimestamp()
+            };
+            try {
+                const docRef = await addDoc(collection(db, 'debts'), newPayment);
+                debts.push({ id: docRef.id, ...newPayment, createdAt: new Date() });
+                updateLocalDataCache();
+                renderAll(); 
+                closeModal(elements.addPaymentModal); 
+                e.target.reset(); 
+            } catch (error) {
+                console.error("Error adding payment: ", error);
+                alert("فشل تسجيل الدفعة.");
+            } finally { hideStatus(); }
         });
         
         elements.searchDebtsInput.addEventListener('input', () => renderDebts(elements.searchDebtsInput.value));
+        elements.searchLast3MonthsDebtsInput.addEventListener('input', () => renderLast3MonthsDebts(elements.searchLast3MonthsDebtsInput.value)); // جديد
         elements.searchMedicinesInput.addEventListener('input', () => renderMedicines(elements.searchMedicinesInput.value));
         elements.searchShortagesInput.addEventListener('input', () => renderShortages(elements.searchShortagesInput.value));
 
         elements.importFileInput.addEventListener('change', (event) => {
             const file = event.target.files[0]; if (!file) return;
             const reader = new FileReader();
-            reader.onload = (e) => {
-                if (!confirm('سيتم استبدال جميع البيانات الحالية. هل أنت متأكد؟')) return;
+            reader.onload = async (e) => { 
+                if (!confirm('سيتم استبدال جميع البيانات الحالية في قاعدة البيانات السحابية والمحلية. هل أنت متأكد؟')) return;
+                showStatus('جارٍ استيراد البيانات...');
                 try {
                     const data = JSON.parse(e.target.result);
-                    if (data && Array.isArray(data.medicines) && Array.isArray(data.debts) && Array.isArray(data.shortages)) {
-                        medicines = data.medicines;
-                        debts = data.debts;
-                        shortages = data.shortages;
-                        archivedDebts = data.archivedDebts || [];
-                        saveData();
-                        renderAll();
-                        alert('تم استيراد البيانات بنجاح!');
-                    } else { alert('ملف غير صالح.'); }
-                } catch { alert('خطأ في قراءة الملف.'); }
+                    if (data && Array.isArray(data.medicines) && Array.isArray(data.debts) && Array.isArray(data.shortages) && Array.isArray(data.archivedDebts)) {
+                        
+                        const deleteAllDocsInCollection = async (collectionRef) => {
+                            const q = query(collectionRef);
+                            const snapshot = await getDocs(q);
+                            const batch = writeBatch(db);
+                            snapshot.docs.forEach(docItem => batch.delete(docItem.ref));
+                            await batch.commit();
+                        };
+                        
+                        await Promise.all([
+                            deleteAllDocsInCollection(collection(db, 'medicines')),
+                            deleteAllDocsInCollection(collection(db, 'debts')),
+                            deleteAllDocsInCollection(collection(db, 'shortages')),
+                            deleteAllDocsInCollection(collection(db, 'archivedDebts'))
+                        ]);
+
+                        const addImportedDataToCollection = async (collectionName, items) => {
+                            const batch = writeBatch(db);
+                            items.forEach(item => {
+                                const docRef = doc(collection(db, collectionName)); 
+                                const cleanedItem = { ...item };
+                                if (cleanedItem.createdAt && typeof cleanedItem.createdAt === 'object' && cleanedItem.createdAt.seconds !== undefined) {
+                                    // Already a Firebase Timestamp, keep it as is
+                                } else if (cleanedItem.createdAt) {
+                                    const dateObj = new Date(cleanedItem.createdAt);
+                                    if (!isNaN(dateObj)) {
+                                        cleanedItem.createdAt = dateObj; 
+                                    } else {
+                                        cleanedItem.createdAt = serverTimestamp(); 
+                                    }
+                                } else {
+                                    cleanedItem.createdAt = serverTimestamp(); 
+                                }
+
+                                if (cleanedItem.archiveDate && typeof cleanedItem.archiveDate === 'object' && cleanedItem.archiveDate.seconds !== undefined) {
+                                    // Already a Firebase Timestamp
+                                } else if (cleanedItem.archiveDate) {
+                                    const dateObj = new Date(cleanedItem.archiveDate);
+                                    if (!isNaN(dateObj)) {
+                                        cleanedItem.archiveDate = dateObj; 
+                                    } else {
+                                        cleanedItem.archiveDate = serverTimestamp(); 
+                                    }
+                                }
+                                
+                                batch.set(docRef, cleanedItem); 
+                            });
+                            await batch.commit();
+                        };
+
+                        await addImportedDataToCollection('medicines', data.medicines);
+                        await addImportedDataToCollection('debts', data.debts);
+                        await addImportedDataToCollection('shortages', data.shortages);
+                        await addImportedDataToCollection('archivedDebts', data.archivedDebts);
+
+                        await loadInitialData({ showIndicators: false }); 
+                        alert('تم استيراد البيانات بنجاح إلى Firebase Firestore!');
+                    } else { alert('ملف غير صالح أو بنيته غير صحيحة.'); }
+                } catch (error) { 
+                    console.error("Error importing data: ", error);
+                    alert('خطأ في قراءة أو استيراد الملف.'); 
+                } finally { hideStatus(); }
             };
             reader.readAsText(file);
             elements.importFileInput.value = '';
         });
 
-        elements.shortageListContainer.addEventListener('change', (e) => {
+        elements.shortageListContainer.addEventListener('change', async (e) => {
             if (e.target.classList.contains('shortage-item-checkbox')) {
-                const shortageItem = shortages.find(s => s.id == e.target.dataset.id);
-                if (shortageItem) {
-                    shortageItem.purchased = e.target.checked;
-                    saveData();
+                const shortageId = e.target.dataset.id;
+                const newPurchasedStatus = e.target.checked;
+                showStatus('جارٍ تحديث حالة الصنف...');
+                try {
+                    const shortageDocRef = doc(db, 'shortages', shortageId);
+                    await updateDoc(shortageDocRef, { purchased: newPurchasedStatus });
+                    const shortageItem = shortages.find(s => s.id == shortageId);
+                    if (shortageItem) shortageItem.purchased = newPurchasedStatus;
+                    updateLocalDataCache();
                     renderShortages(elements.searchShortagesInput.value);
-                }
+                } catch (error) {
+                    console.error("Error updating shortage status: ", error);
+                    alert("فشل تحديث حالة الصنف.");
+                } finally { hideStatus(); }
             }
         });
 
-        document.body.addEventListener('click', (e) => {
+        document.body.addEventListener('click', async (e) => {
             const target = e.target.closest('button');
             if (!target) return;
 
             const id = target.dataset.id;
-            const customerName = target.dataset.customer;
+            const customerName = target.dataset.customer; // تم التصحيح إلى .dataset.customer
 
             // Debt Archive
-            if (target.id === 'open-debt-archive-btn') { renderDebtArchive(); openModal(elements.debtArchiveModal); }
+            if (target.id === 'open-debt-archive-btn') { 
+                renderDebtArchive(); 
+                openModal(elements.debtArchiveModal); 
+            }
             else if (target.matches('.restore-debt-btn')) {
-                const debtToRestore = archivedDebts.find(d => d.id == id);
-                if (debtToRestore) {
-                    delete debtToRestore.archiveReason; delete debtToRestore.archiveDate;
-                    debts.push(debtToRestore);
-                    archivedDebts = archivedDebts.filter(d => d.id != id);
-                    saveData(); renderDebtArchive(); renderDebts(elements.searchDebtsInput.value);
-                }
+                showStatus('جارٍ استعادة الدين...');
+                try {
+                    const debtToRestore = archivedDebts.find(d => d.id == id);
+                    if (debtToRestore) {
+                        const { archiveReason, archiveDate, ...rest } = debtToRestore;
+                        await addDoc(collection(db, 'debts'), { ...rest, createdAt: serverTimestamp() }); 
+                        await deleteDoc(doc(db, 'archivedDebts', id)); 
+
+                        await loadInitialData(); 
+                        renderDebtArchive(); 
+                    }
+                } catch (error) {
+                    console.error("Error restoring debt: ", error);
+                    alert("فشل استعادة الدين.");
+                } finally { hideStatus(); }
             }
             else if (target.matches('.perm-delete-debt-btn')) {
                 if (confirm('هل أنت متأكد من حذف هذه المعاملة نهائياً؟ لا يمكن التراجع.')) {
-                    archivedDebts = archivedDebts.filter(d => d.id != id);
-                    saveData(); renderDebtArchive();
+                    showStatus('جارٍ الحذف النهائي...');
+                    try {
+                        await deleteDoc(doc(db, 'archivedDebts', id));
+                        archivedDebts = archivedDebts.filter(d => d.id != id); 
+                        updateLocalDataCache();
+                        renderDebtArchive();
+                    } catch (error) {
+                        console.error("Error permanently deleting debt: ", error);
+                        alert("فشل الحذف النهائي للدين.");
+                    } finally { hideStatus(); }
                 }
             }
             else if (target.id === 'clear-archive-btn') {
                 if (confirm('هل أنت متأكد من تفريغ سلة المحذوفات بالكامل؟ سيتم الحذف نهائياً.')) {
-                    archivedDebts = []; saveData(); renderDebtArchive();
+                    showStatus('جارٍ تفريغ سلة المحذوفات...');
+                    try {
+                        const q = query(collection(db, 'archivedDebts'));
+                        const snapshot = await getDocs(q);
+                        const batch = writeBatch(db);
+                        snapshot.docs.forEach(docItem => batch.delete(docItem.ref));
+                        await batch.commit();
+                        archivedDebts = []; 
+                        updateLocalDataCache();
+                        renderDebtArchive();
+                    } catch (error) {
+                        console.error("Error clearing archive: ", error);
+                        alert("فشل تفريغ سلة المحذوفات.");
+                    } finally { hideStatus(); }
                 }
             }
             // Add Modals
-            else if (target.id === 'show-add-medicine-modal-btn') { elements.addMedicineForm.reset(); document.getElementById('med-expiry').valueAsDate = new Date(); openModal(elements.addMedicineModal); }
-            else if (target.id === 'add-new-debt-btn') {
+            else if (target.id === 'show-add-medicine-modal-btn') { 
+                elements.addMedicineForm.reset(); 
+                document.getElementById('med-expiry').valueAsDate = new Date(); 
+                openModal(elements.addMedicineModal); 
+            }
+            else if (target.id === 'add-new-debt-btn') { // هذا الزر في سجل الديون الكامل
                 elements.addDebtForm.reset();
-                document.getElementById('debt-customer').disabled = false;
                 document.getElementById('debt-date').valueAsDate = new Date();
                 openModal(elements.addDebtModal);
             }
-            else if (target.matches('.btn-add-debt-for-customer')) {
+            else if (target.matches('.btn-add-debt-for-customer')) { // هذا الزر موجود في كل من شاشتي الديون
                 elements.addDebtForm.reset();
                 document.getElementById('debt-customer').value = customerName;
                 document.getElementById('debt-date').valueAsDate = new Date();
                 openModal(elements.addDebtModal);
             }
-            else if (target.matches('.btn-add-payment')) {
+            else if (target.matches('.btn-add-payment')) { // هذا الزر موجود في كل من شاشتي الديون
                 elements.addPaymentForm.reset();
                 elements.paymentCustomerNameInput.value = customerName;
                 elements.paymentCustomerDisplay.value = customerName;
                 document.getElementById('payment-date').valueAsDate = new Date();
                 openModal(elements.addPaymentModal);
             }
-            else if (target.id === 'show-add-shortage-modal-btn') { elements.addShortageForm.reset(); openModal(elements.addShortageModal); }
+            else if (target.id === 'show-add-shortage-modal-btn') { 
+                elements.addShortageForm.reset(); 
+                openModal(elements.addShortageModal); 
+            }
             
             // Delete Buttons
             else if (target.matches('.delete-debt-btn')) {
-                const debtToArchive = debts.find(d => d.id == id);
-                if (debtToArchive) {
-                    debtToArchive.archiveReason = 'محذوف يدويًا';
-                    debtToArchive.archiveDate = new Date().toISOString();
-                    archivedDebts.push(debtToArchive);
-                    debts = debts.filter(d => d.id != id);
-                    saveData(); renderDebts(elements.searchDebtsInput.value);
+                if (confirm('هل أنت متأكد من نقل هذا الدين للأرشيف؟')) {
+                    showStatus('جارٍ أرشفة الدين...');
+                    try {
+                        const debtToArchive = debts.find(d => d.id == id);
+                        if (debtToArchive) {
+                            const archivedDocRef = doc(collection(db, 'archivedDebts'));
+                            await setDoc(archivedDocRef, { 
+                                ...debtToArchive, 
+                                archiveReason: 'محذوف يدويًا',
+                                archiveDate: serverTimestamp()
+                            });
+                            await deleteDoc(doc(db, 'debts', id)); 
+                            await loadInitialData(); 
+                        }
+                    } catch (error) {
+                        console.error("Error archiving debt: ", error);
+                        alert("فشل أرشفة الدين.");
+                    } finally { hideStatus(); }
                 }
             } 
-            else if (target.matches('.delete-med-btn')) { if(confirm('هل أنت متأكد من حذف هذا الدواء؟')) { medicines = medicines.filter(m => m.id != id); saveData(); renderAll(); }}
-            else if (target.matches('.delete-shortage-btn')) { if(confirm('هل أنت متأكد من حذف هذا الصنف؟')) { shortages = shortages.filter(s => s.id != id); saveData(); renderAll(); }}
+            else if (target.matches('.delete-med-btn')) { 
+                if(confirm('هل أنت متأكد من حذف هذا الدواء؟')) { 
+                    showStatus('جارٍ حذف الدواء...');
+                    try {
+                        await deleteDoc(doc(db, 'medicines', id));
+                        medicines = medicines.filter(m => m.id != id);
+                        updateLocalDataCache();
+                        renderAll(); 
+                    } catch (error) {
+                        console.error("Error deleting medicine: ", error);
+                        alert("فشل حذف الدواء.");
+                    } finally { hideStatus(); }
+                }
+            }
+            else if (target.matches('.delete-shortage-btn')) { 
+                if(confirm('هل أنت متأكد من حذف هذا الصنف؟')) { 
+                    showStatus('جارٍ حذف الصنف...');
+                    try {
+                        await deleteDoc(doc(db, 'shortages', id));
+                        shortages = shortages.filter(s => s.id != id);
+                        updateLocalDataCache();
+                        renderAll(); 
+                    } catch (error) {
+                        console.error("Error deleting shortage: ", error);
+                        alert("فشل حذف الصنف.");
+                    } finally { hideStatus(); }
+                }
+            }
             else if (target.id === 'delete-selected-shortages-btn') {
                 const purchasedCount = shortages.filter(s => s.purchased).length;
                 if (purchasedCount > 0 && confirm(`هل أنت متأكد من حذف الـ ${purchasedCount} صنف/أصناف المحددة؟`)) {
-                    shortages = shortages.filter(s => !s.purchased);
-                    saveData(); renderAll();
+                    showStatus('جارٍ حذف الأصناف المحددة...');
+                    const batch = writeBatch(db);
+                    shortages.filter(s => s.purchased).forEach(s => {
+                        batch.delete(doc(db, 'shortages', s.id));
+                    });
+                    try {
+                        await batch.commit();
+                        shortages = shortages.filter(s => !s.purchased);
+                        updateLocalDataCache();
+                        renderAll();
+                    } catch (error) {
+                        console.error("Error deleting selected shortages: ", error);
+                        alert("فشل حذف الأصناف المحددة.");
+                    } finally { hideStatus(); }
                 }
             }
         });
     }
 
     const loadInitialData = async (options = {}) => {
-        const { showIndicators = false, showSuccessAlert = false, forceCloud = false } = options;
+        const { showIndicators = false, showSuccessAlert = false } = options;
 
         if (showIndicators) showStatus('جارٍ تحميل البيانات...');
-        let dataLoadedFromCloud = false;
-
-        if (forceCloud || isAutoSyncEnabled) {
-            try {
-                const response = await fetch('/api/load-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(GITHUB_CONFIG) });
-                if (response.ok) {
-                    let data = await response.json();
-                    if (typeof data === 'string') data = JSON.parse(data);
-                    
-                    if (data && typeof data === 'object' && Array.isArray(data.medicines) && Array.isArray(data.debts) && Array.isArray(data.shortages)) {
-                        medicines = data.medicines;
-                        debts = data.debts;
-                        shortages = data.shortages;
-                        archivedDebts = data.archivedDebts || [];
-                        saveData();
-                        if(showSuccessAlert) alert('تم استيراد أحدث البيانات من السحابة بنجاح!');
-                        dataLoadedFromCloud = true;
-                    } else if (showIndicators && showSuccessAlert) {
-                        alert('صيغة البيانات من السحابة غير صالحة، سيتم استخدام البيانات المحلية.');
-                    }
-                } else if (response.status !== 404 && showIndicators && showSuccessAlert) {
-                    alert(`خطأ في الاتصال بالسحابة (${response.status}). سيتم استخدام البيانات المحلية.`);
-                }
-            } catch (error) {
-                if (showIndicators && showSuccessAlert) alert("فشل الاتصال بالشبكة. سيتم استخدام البيانات المحلية.");
-            }
-        }
         
-        if (!dataLoadedFromCloud) {
+        try {
+            const [medicinesSnap, debtsSnap, shortagesSnap, archivedDebtsSnap] = await Promise.all([
+                getDocs(collection(db, 'medicines')),
+                getDocs(collection(db, 'debts')),
+                getDocs(collection(db, 'shortages')),
+                getDocs(collection(db, 'archivedDebts'))
+            ]);
+
+            medicines = medicinesSnap.docs.map(docItem => {
+                const data = docItem.data();
+                return { id: docItem.id, ...data, createdAt: data.createdAt?.toDate() };
+            });
+            debts = debtsSnap.docs.map(docItem => {
+                const data = docItem.data();
+                return { id: docItem.id, ...data, createdAt: data.createdAt?.toDate() };
+            });
+            shortages = shortagesSnap.docs.map(docItem => {
+                const data = docItem.data();
+                return { id: docItem.id, ...data, createdAt: data.createdAt?.toDate() };
+            });
+            archivedDebts = archivedDebtsSnap.docs.map(docItem => {
+                const data = docItem.data();
+                return { 
+                    id: docItem.id, 
+                    ...data, 
+                    createdAt: data.createdAt?.toDate(), 
+                    archiveDate: data.archiveDate?.toDate() 
+                };
+            });
+            
+            updateLocalDataCache(); 
+
+            if (showIndicators) hideStatus();
+            renderAll();
+            if(showSuccessAlert) alert('تم تحميل البيانات من السحابة بنجاح!');
+
+        } catch (error) {
+            console.error("Error loading data from Firestore:", error);
+            if (showIndicators) hideStatus();
+            alert("فشل تحميل البيانات من السحابة. سيتم استخدام البيانات المحلية (إن وجدت).");
             medicines = JSON.parse(localStorage.getItem('medicines')) || [];
             debts = JSON.parse(localStorage.getItem('debts')) || [];
             shortages = JSON.parse(localStorage.getItem('shortages')) || [];
             archivedDebts = JSON.parse(localStorage.getItem('archivedDebts')) || [];
+            renderAll();
         }
-
-        if (showIndicators) hideStatus();
-        renderAll();
     };
     
     function initializePasswordCheck() {
@@ -641,7 +912,6 @@ const analytics = getAnalytics(app);
                 elements.passwordModal.style.display = 'none';
                 await loadInitialData({ showIndicators: true, showSuccessAlert: false });
                 elements.allViewsAndIndicators.forEach(el => el.style.visibility = 'visible');
-                setupAutoSync();
                 setupAppListeners();
             } else {
                 elements.passwordError.textContent = 'كلمة المرور غير صحيحة. حاول مرة أخرى.';
