@@ -12,7 +12,8 @@ import {
     where, 
     writeBatch, 
     serverTimestamp,
-    setDoc 
+    setDoc,
+    onSnapshot // <<=== جديد: استيراد onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // Optionally import analytics if you intend to use it
@@ -50,12 +51,12 @@ document.addEventListener('DOMContentLoaded', () => {
         dashboardView: document.getElementById('dashboard-view'),
         medicinesView: document.getElementById('medicines-view'),
         debtsView: document.getElementById('debts-view'),
-        last3MonthsDebtsView: document.getElementById('last-3-months-debts-view'), // جديد
+        last3MonthsDebtsView: document.getElementById('last-3-months-debts-view'), 
         shortagesView: document.getElementById('shortages-view'),
         allViews: document.querySelectorAll('.view'),
         openMedicinesBtn: document.getElementById('open-medicines-btn'),
         openDebtsBtn: document.getElementById('open-debts-btn'),
-        openLast3MonthsDebtsBtn: document.getElementById('open-last-3-months-debts-btn'), // جديد
+        openLast3MonthsDebtsBtn: document.getElementById('open-last-3-months-debts-btn'), 
         openShortagesBtn: document.getElementById('open-shortages-btn'),
         backButtons: document.querySelectorAll('.back-btn'),
         backupDataBtn: document.getElementById('backup-data-btn'),
@@ -63,14 +64,14 @@ document.addEventListener('DOMContentLoaded', () => {
         importFileInput: document.getElementById('import-file-input'),
         medicineTimelineContainer: document.getElementById('medicine-timeline-container'),
         debtListContainer: document.getElementById('debt-list-container'),
-        last3MonthsDebtListContainer: document.getElementById('last-3-months-debt-list-container'), // جديد
+        last3MonthsDebtListContainer: document.getElementById('last-3-months-debt-list-container'), 
         shortageListContainer: document.getElementById('shortage-list-container'),
         searchDebtsInput: document.getElementById('search-debts-input'),
-        searchLast3MonthsDebtsInput: document.getElementById('search-last-3-months-debts-input'), // جديد
+        searchLast3MonthsDebtsInput: document.getElementById('search-last-3-months-debts-input'), 
         searchMedicinesInput: document.getElementById('search-medicines-input'),
         searchShortagesInput: document.getElementById('search-shortages-input'),
         totalDebtsAmountEl: document.getElementById('total-debts-amount'),
-        totalLast3MonthsDebtsAmountEl: document.getElementById('total-last-3-months-debts-amount'), // جديد
+        totalLast3MonthsDebtsAmountEl: document.getElementById('total-last-3-months-debts-amount'), 
         addMedicineModal: document.getElementById('add-medicine-modal'),
         addMedicineForm: document.getElementById('add-medicine-form'),
         showAddMedicineModalBtn: document.getElementById('show-add-medicine-modal-btn'),
@@ -99,6 +100,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let shortages = [];
     let archivedDebts = [];
 
+    // متغيرات لتخزين دوال إلغاء الاشتراك من مستمعي onSnapshot
+    let unsubscribeMedicines = null;
+    let unsubscribeDebts = null;
+    let unsubscribeShortages = null;
+    let unsubscribeArchivedDebts = null;
+
     const showStatus = (text) => {
         elements.statusText.textContent = text;
         elements.statusIndicator.classList.remove('hidden');
@@ -107,6 +114,8 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.statusIndicator.classList.add('hidden');
     };
     
+    // هذه الدالة ستقوم فقط بتحديث localStorage كـ "cache" للنسخ الاحتياطي/الاستيراد المحلي
+    // سيتم استدعاؤها الآن داخل مستمعي onSnapshot لضمان أن الكاش المحلي محدث دائماً
     const updateLocalDataCache = () => {
         localStorage.setItem('medicines', JSON.stringify(medicines));
         localStorage.setItem('debts', JSON.stringify(debts));
@@ -215,10 +224,10 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 await batch.commit();
                 console.log("Settled debts archived and deleted from debts collection.");
-                await loadInitialData(); // Re-load data after batch commit to refresh UI
+                // لا نحتاج إلى loadInitialData هنا لأن onSnapshot سيتولى التحديث
                 hideStatus();
             } catch (error) {
-                console.error("Error archiving settled debts: ", error);
+                console.error("Error archiving settled debts:", error);
                 alert("فشل أرشفة الديون المسددة.");
                 hideStatus();
             }
@@ -439,7 +448,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const renderAll = () => {
         renderMedicines(elements.searchMedicinesInput.value);
         renderDebts(elements.searchDebtsInput.value);
-        renderLast3MonthsDebts(elements.searchLast3MonthsDebtsInput.value); // جديد
+        renderLast3MonthsDebts(elements.searchLast3MonthsDebtsInput.value);
         renderShortages(elements.searchShortagesInput.value);
     };
 
@@ -465,10 +474,62 @@ document.addEventListener('DOMContentLoaded', () => {
         return foundName || trimmedName;
     };
 
+    // <==== وظيفة إعداد مستمعي Firestore onSnapshot (جديد بالكامل) ====>
+    const setupFirestoreListeners = () => {
+        // Medicines Listener
+        unsubscribeMedicines = onSnapshot(collection(db, 'medicines'), (snapshot) => {
+            medicines = snapshot.docs.map(docItem => ({ id: docItem.id, ...docItem.data(), createdAt: docItem.data().createdAt?.toDate() }));
+            updateLocalDataCache();
+            renderMedicines(elements.searchMedicinesInput.value);
+            console.log("Medicines updated by onSnapshot.");
+        }, (error) => {
+            console.error("Error listening to medicines:", error);
+        });
+
+        // Debts Listener
+        unsubscribeDebts = onSnapshot(collection(db, 'debts'), (snapshot) => {
+            debts = snapshot.docs.map(docItem => ({ id: docItem.id, ...docItem.data(), createdAt: docItem.data().createdAt?.toDate() }));
+            updateLocalDataCache();
+            renderDebts(elements.searchDebtsInput.value);
+            renderLast3MonthsDebts(elements.searchLast3MonthsDebtsInput.value); // تحديث شاشة آخر 3 أشهر أيضاً
+            console.log("Debts updated by onSnapshot.");
+        }, (error) => {
+            console.error("Error listening to debts:", error);
+        });
+
+        // Shortages Listener
+        unsubscribeShortages = onSnapshot(collection(db, 'shortages'), (snapshot) => {
+            shortages = snapshot.docs.map(docItem => ({ id: docItem.id, ...docItem.data(), createdAt: docItem.data().createdAt?.toDate() }));
+            updateLocalDataCache();
+            renderShortages(elements.searchShortagesInput.value);
+            console.log("Shortages updated by onSnapshot.");
+        }, (error) => {
+            console.error("Error listening to shortages:", error);
+        });
+
+        // Archived Debts Listener
+        unsubscribeArchivedDebts = onSnapshot(collection(db, 'archivedDebts'), (snapshot) => {
+            archivedDebts = snapshot.docs.map(docItem => ({ 
+                id: docItem.id, 
+                ...docItem.data(), 
+                createdAt: docItem.data().createdAt?.toDate(), 
+                archiveDate: docItem.data().archiveDate?.toDate() 
+            }));
+            updateLocalDataCache();
+            if (elements.debtArchiveModal.style.display === 'flex') { // تحديث الأرشيف فقط إذا كانت نافذته مفتوحة
+                renderDebtArchive();
+            }
+            console.log("Archived debts updated by onSnapshot.");
+        }, (error) => {
+            console.error("Error listening to archived debts:", error);
+        });
+    };
+    // <==== نهاية وظيفة إعداد مستمعي Firestore onSnapshot ====>
+
     function setupAppListeners() {
         elements.openMedicinesBtn.addEventListener('click', () => showView(elements.medicinesView));
         elements.openDebtsBtn.addEventListener('click', () => { showView(elements.debtsView); archiveSettledDebts(); }); 
-        elements.openLast3MonthsDebtsBtn.addEventListener('click', () => { showView(elements.last3MonthsDebtsView); renderLast3MonthsDebts(elements.searchLast3MonthsDebtsInput.value); }); // جديد
+        elements.openLast3MonthsDebtsBtn.addEventListener('click', () => { showView(elements.last3MonthsDebtsView); renderLast3MonthsDebts(elements.searchLast3MonthsDebtsInput.value); }); 
         elements.openShortagesBtn.addEventListener('click', () => showView(elements.shortagesView));
         elements.backButtons.forEach(btn => btn.addEventListener('click', () => showView(elements.dashboardView)));
         elements.closeButtons.forEach(btn => btn.addEventListener('click', (e) => closeModal(e.target.closest('.modal'))));
@@ -500,10 +561,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 createdAt: serverTimestamp() 
             };
             try {
-                const docRef = await addDoc(collection(db, 'medicines'), newMed);
-                medicines.push({ id: docRef.id, ...newMed, createdAt: new Date() }); 
-                updateLocalDataCache();
-                renderAll(); 
+                await addDoc(collection(db, 'medicines'), newMed);
+                // لا نحتاج لتحديث القائمة المحلية يدوياً أو renderAll() هنا، onSnapshot سيتولى ذلك
                 closeModal(elements.addMedicineModal); 
                 e.target.reset(); 
             } catch (error) {
@@ -525,10 +584,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 createdAt: serverTimestamp()
             };
             try {
-                const docRef = await addDoc(collection(db, 'debts'), newDebt);
-                debts.push({ id: docRef.id, ...newDebt, createdAt: new Date() });
-                updateLocalDataCache();
-                renderAll(); 
+                await addDoc(collection(db, 'debts'), newDebt);
+                // لا نحتاج لتحديث القائمة المحلية يدوياً أو renderAll() هنا، onSnapshot سيتولى ذلك
                 closeModal(elements.addDebtModal); 
                 e.target.reset(); 
             } catch (error) {
@@ -547,10 +604,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 createdAt: serverTimestamp()
             };
             try {
-                const docRef = await addDoc(collection(db, 'shortages'), newShortage);
-                shortages.push({ id: docRef.id, ...newShortage, createdAt: new Date() });
-                updateLocalDataCache();
-                renderAll(); 
+                await addDoc(collection(db, 'shortages'), newShortage);
+                // لا نحتاج لتحديث القائمة المحلية يدوياً أو renderAll() هنا، onSnapshot سيتولى ذلك
                 closeModal(elements.addShortageModal); 
                 e.target.reset(); 
             } catch (error) {
@@ -572,10 +627,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 createdAt: serverTimestamp()
             };
             try {
-                const docRef = await addDoc(collection(db, 'debts'), newPayment);
-                debts.push({ id: docRef.id, ...newPayment, createdAt: new Date() });
-                updateLocalDataCache();
-                renderAll(); 
+                await addDoc(collection(db, 'debts'), newPayment);
+                // لا نحتاج لتحديث القائمة المحلية يدوياً أو renderAll() هنا، onSnapshot سيتولى ذلك
                 closeModal(elements.addPaymentModal); 
                 e.target.reset(); 
             } catch (error) {
@@ -585,7 +638,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         elements.searchDebtsInput.addEventListener('input', () => renderDebts(elements.searchDebtsInput.value));
-        elements.searchLast3MonthsDebtsInput.addEventListener('input', () => renderLast3MonthsDebts(elements.searchLast3MonthsDebtsInput.value)); // جديد
+        elements.searchLast3MonthsDebtsInput.addEventListener('input', () => renderLast3MonthsDebts(elements.searchLast3MonthsDebtsInput.value)); 
         elements.searchMedicinesInput.addEventListener('input', () => renderMedicines(elements.searchMedicinesInput.value));
         elements.searchShortagesInput.addEventListener('input', () => renderShortages(elements.searchShortagesInput.value));
 
@@ -599,6 +652,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     const data = JSON.parse(e.target.result);
                     if (data && Array.isArray(data.medicines) && Array.isArray(data.debts) && Array.isArray(data.shortages) && Array.isArray(data.archivedDebts)) {
                         
+                        // إيقاف مستمعي onSnapshot مؤقتاً لتجنب التحديثات المتكررة أثناء الاستيراد الكبير
+                        unsubscribeMedicines && unsubscribeMedicines();
+                        unsubscribeDebts && unsubscribeDebts();
+                        unsubscribeShortages && unsubscribeShortages();
+                        unsubscribeArchivedDebts && unsubscribeArchivedDebts();
+
                         const deleteAllDocsInCollection = async (collectionRef) => {
                             const q = query(collectionRef);
                             const snapshot = await getDocs(q);
@@ -623,7 +682,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     // Already a Firebase Timestamp, keep it as is
                                 } else if (cleanedItem.createdAt) {
                                     const dateObj = new Date(cleanedItem.createdAt);
-                                    if (!isNaN(dateObj)) {
+                                    if (!isNaN(dateObj.getTime())) { // Use getTime() for robust check
                                         cleanedItem.createdAt = dateObj; 
                                     } else {
                                         cleanedItem.createdAt = serverTimestamp(); 
@@ -636,7 +695,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     // Already a Firebase Timestamp
                                 } else if (cleanedItem.archiveDate) {
                                     const dateObj = new Date(cleanedItem.archiveDate);
-                                    if (!isNaN(dateObj)) {
+                                    if (!isNaN(dateObj.getTime())) { // Use getTime() for robust check
                                         cleanedItem.archiveDate = dateObj; 
                                     } else {
                                         cleanedItem.archiveDate = serverTimestamp(); 
@@ -653,7 +712,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         await addImportedDataToCollection('shortages', data.shortages);
                         await addImportedDataToCollection('archivedDebts', data.archivedDebts);
 
-                        await loadInitialData({ showIndicators: false }); 
+                        // إعادة تفعيل مستمعي onSnapshot بعد اكتمال الاستيراد
+                        setupFirestoreListeners(); 
                         alert('تم استيراد البيانات بنجاح إلى Firebase Firestore!');
                     } else { alert('ملف غير صالح أو بنيته غير صحيحة.'); }
                 } catch (error) { 
@@ -673,10 +733,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     const shortageDocRef = doc(db, 'shortages', shortageId);
                     await updateDoc(shortageDocRef, { purchased: newPurchasedStatus });
-                    const shortageItem = shortages.find(s => s.id == shortageId);
-                    if (shortageItem) shortageItem.purchased = newPurchasedStatus;
-                    updateLocalDataCache();
-                    renderShortages(elements.searchShortagesInput.value);
+                    // onSnapshot سيتولى تحديث الواجهة
                 } catch (error) {
                     console.error("Error updating shortage status: ", error);
                     alert("فشل تحديث حالة الصنف.");
@@ -689,7 +746,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!target) return;
 
             const id = target.dataset.id;
-            const customerName = target.dataset.customer; // تم التصحيح إلى .dataset.customer
+            const customerName = target.dataset.customer; 
 
             // Debt Archive
             if (target.id === 'open-debt-archive-btn') { 
@@ -704,9 +761,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const { archiveReason, archiveDate, ...rest } = debtToRestore;
                         await addDoc(collection(db, 'debts'), { ...rest, createdAt: serverTimestamp() }); 
                         await deleteDoc(doc(db, 'archivedDebts', id)); 
-
-                        await loadInitialData(); 
-                        renderDebtArchive(); 
+                        // onSnapshot سيتولى تحديث الواجهة
                     }
                 } catch (error) {
                     console.error("Error restoring debt: ", error);
@@ -718,9 +773,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     showStatus('جارٍ الحذف النهائي...');
                     try {
                         await deleteDoc(doc(db, 'archivedDebts', id));
-                        archivedDebts = archivedDebts.filter(d => d.id != id); 
-                        updateLocalDataCache();
-                        renderDebtArchive();
+                        // onSnapshot سيتولى تحديث الواجهة
                     } catch (error) {
                         console.error("Error permanently deleting debt: ", error);
                         alert("فشل الحذف النهائي للدين.");
@@ -736,33 +789,31 @@ document.addEventListener('DOMContentLoaded', () => {
                         const batch = writeBatch(db);
                         snapshot.docs.forEach(docItem => batch.delete(docItem.ref));
                         await batch.commit();
-                        archivedDebts = []; 
-                        updateLocalDataCache();
-                        renderDebtArchive();
+                        // onSnapshot سيتولى تحديث الواجهة
                     } catch (error) {
                         console.error("Error clearing archive: ", error);
                         alert("فشل تفريغ سلة المحذوفات.");
                     } finally { hideStatus(); }
                 }
             }
-            // Add Modals
+            // Add Modals - هذه الأجزاء لن تتغير بشكل جوهري، فقط عمليات onSnapshot تستمع للتغييرات
             else if (target.id === 'show-add-medicine-modal-btn') { 
                 elements.addMedicineForm.reset(); 
                 document.getElementById('med-expiry').valueAsDate = new Date(); 
                 openModal(elements.addMedicineModal); 
             }
-            else if (target.id === 'add-new-debt-btn') { // هذا الزر في سجل الديون الكامل
+            else if (target.id === 'add-new-debt-btn') { 
                 elements.addDebtForm.reset();
                 document.getElementById('debt-date').valueAsDate = new Date();
                 openModal(elements.addDebtModal);
             }
-            else if (target.matches('.btn-add-debt-for-customer')) { // هذا الزر موجود في كل من شاشتي الديون
+            else if (target.matches('.btn-add-debt-for-customer')) { 
                 elements.addDebtForm.reset();
                 document.getElementById('debt-customer').value = customerName;
                 document.getElementById('debt-date').valueAsDate = new Date();
                 openModal(elements.addDebtModal);
             }
-            else if (target.matches('.btn-add-payment')) { // هذا الزر موجود في كل من شاشتي الديون
+            else if (target.matches('.btn-add-payment')) { 
                 elements.addPaymentForm.reset();
                 elements.paymentCustomerNameInput.value = customerName;
                 elements.paymentCustomerDisplay.value = customerName;
@@ -774,7 +825,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 openModal(elements.addShortageModal); 
             }
             
-            // Delete Buttons
+            // Delete Buttons - عمليات الحذف/الأرشفة ستعتمد على onSnapshot للتحديث
             else if (target.matches('.delete-debt-btn')) {
                 if (confirm('هل أنت متأكد من نقل هذا الدين للأرشيف؟')) {
                     showStatus('جارٍ أرشفة الدين...');
@@ -788,7 +839,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 archiveDate: serverTimestamp()
                             });
                             await deleteDoc(doc(db, 'debts', id)); 
-                            await loadInitialData(); 
+                            // onSnapshot سيتولى تحديث الواجهة
                         }
                     } catch (error) {
                         console.error("Error archiving debt: ", error);
@@ -801,9 +852,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     showStatus('جارٍ حذف الدواء...');
                     try {
                         await deleteDoc(doc(db, 'medicines', id));
-                        medicines = medicines.filter(m => m.id != id);
-                        updateLocalDataCache();
-                        renderAll(); 
+                        // onSnapshot سيتولى تحديث الواجهة
                     } catch (error) {
                         console.error("Error deleting medicine: ", error);
                         alert("فشل حذف الدواء.");
@@ -815,9 +864,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     showStatus('جارٍ حذف الصنف...');
                     try {
                         await deleteDoc(doc(db, 'shortages', id));
-                        shortages = shortages.filter(s => s.id != id);
-                        updateLocalDataCache();
-                        renderAll(); 
+                        // onSnapshot سيتولى تحديث الواجهة
                     } catch (error) {
                         console.error("Error deleting shortage: ", error);
                         alert("فشل حذف الصنف.");
@@ -834,9 +881,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     try {
                         await batch.commit();
-                        shortages = shortages.filter(s => !s.purchased);
-                        updateLocalDataCache();
-                        renderAll();
+                        // onSnapshot سيتولى تحديث الواجهة
                     } catch (error) {
                         console.error("Error deleting selected shortages: ", error);
                         alert("فشل حذف الأصناف المحددة.");
@@ -846,57 +891,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // هذه الدالة الآن مسؤولة فقط عن إعداد مستمعي onSnapshot
+    // التي ستقوم بتعبئة القوائم المحلية وعرضها
     const loadInitialData = async (options = {}) => {
         const { showIndicators = false, showSuccessAlert = false } = options;
-
         if (showIndicators) showStatus('جارٍ تحميل البيانات...');
         
-        try {
-            const [medicinesSnap, debtsSnap, shortagesSnap, archivedDebtsSnap] = await Promise.all([
-                getDocs(collection(db, 'medicines')),
-                getDocs(collection(db, 'debts')),
-                getDocs(collection(db, 'shortages')),
-                getDocs(collection(db, 'archivedDebts'))
-            ]);
+        // إعداد مستمعي onSnapshot
+        setupFirestoreListeners();
 
-            medicines = medicinesSnap.docs.map(docItem => {
-                const data = docItem.data();
-                return { id: docItem.id, ...data, createdAt: data.createdAt?.toDate() };
-            });
-            debts = debtsSnap.docs.map(docItem => {
-                const data = docItem.data();
-                return { id: docItem.id, ...data, createdAt: data.createdAt?.toDate() };
-            });
-            shortages = shortagesSnap.docs.map(docItem => {
-                const data = docItem.data();
-                return { id: docItem.id, ...data, createdAt: data.createdAt?.toDate() };
-            });
-            archivedDebts = archivedDebtsSnap.docs.map(docItem => {
-                const data = docItem.data();
-                return { 
-                    id: docItem.id, 
-                    ...data, 
-                    createdAt: data.createdAt?.toDate(), 
-                    archiveDate: data.archiveDate?.toDate() 
-                };
-            });
-            
-            updateLocalDataCache(); 
-
-            if (showIndicators) hideStatus();
-            renderAll();
-            if(showSuccessAlert) alert('تم تحميل البيانات من السحابة بنجاح!');
-
-        } catch (error) {
-            console.error("Error loading data from Firestore:", error);
-            if (showIndicators) hideStatus();
-            alert("فشل تحميل البيانات من السحابة. سيتم استخدام البيانات المحلية (إن وجدت).");
-            medicines = JSON.parse(localStorage.getItem('medicines')) || [];
-            debts = JSON.parse(localStorage.getItem('debts')) || [];
-            shortages = JSON.parse(localStorage.getItem('shortages')) || [];
-            archivedDebts = JSON.parse(localStorage.getItem('archivedDebts')) || [];
-            renderAll();
-        }
+        // لإظهار مؤشر التحميل ثم إخفائه فوراً بعد إعداد المستمعات
+        // المستمعات نفسها ستجلب البيانات وتعرضها
+        if (showIndicators) hideStatus();
+        if(showSuccessAlert) alert('تم تهيئة المزامنة السحابية بنجاح!');
+        // البيانات الأولية ستظهر بمجرد أن يقوم onSnapshot بجلبها
     };
     
     function initializePasswordCheck() {
@@ -910,7 +918,7 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             if (elements.passwordInput.value === sitePassword) {
                 elements.passwordModal.style.display = 'none';
-                await loadInitialData({ showIndicators: true, showSuccessAlert: false });
+                await loadInitialData({ showIndicators: true, showSuccessAlert: false }); // ستقوم بإعداد المستمعات
                 elements.allViewsAndIndicators.forEach(el => el.style.visibility = 'visible');
                 setupAppListeners();
             } else {
