@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام الصيدلية - تصميم حيوي</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- ======== نافذة كلمة المرور المنبثقة ======== -->
+    <div id="password-modal" class="modal">
+        <div class="modal-content password-modal-content">
+            <h3><i class="fa-solid fa-lock"></i> الوصول محمي</h3>
+            <p>الرجاء إدخال كلمة المرور للمتابعة.</p>
+            <form id="password-form">
+                <div class="form-group password-wrapper">
+                    <input type="password" id="password-input" placeholder="كلمة المرور" required autocomplete="new-password">
+                    <i id="toggle-password-visibility" class="fa-solid fa-eye-slash"></i>
+                </div>
+                <button type="submit" class="btn btn-primary form-full-width">دخول</button>
+            </form>
+            <p id="password-error" class="error-message"></p>
+        </div>
+    </div>
+
+    <!-- مؤشر الحالة العام -->
+    <div id="status-indicator" class="status-indicator hidden">
+        <div class="status-content">
+            <i class="fa-solid fa-spinner fa-spin"></i>
+            <span id="status-text">جارٍ التنفيذ...</span>
+        </div>
+    </div>
+
+    <!-- الشاشة الرئيسية: لوحة الإطلاق -->
+    <div id="dashboard-view" class="view active-view">
+        <header class="dashboard-header">
+            <h1>نظام إدارة الصيدلية</h1>
+            <p>مرحبًا بك في لوحة التحكم الرئيسية.</p>
+        </header>
+        <main class="dashboard-main">
+            <div class="dashboard-card" id="open-medicines-btn">
+                <div class="card-icon-wrapper bg-blue-light text-blue"><i class="fa-solid fa-pills"></i></div>
+                <div class="card-text"><h3>انتهاء الصلاحية</h3><p>مراقبة تواريخ انتهاء الأدوية</p></div>
+            </div>
+            <div class="dashboard-card" id="open-debts-btn">
+                <div class="card-icon-wrapper bg-red-light text-red"><i class="fa-solid fa-hand-holding-dollar"></i></div>
+                <div class="card-text"><h3>سجل الديون</h3><p>تسجيل ومتابعة ديون العملاء</p></div>
+            </div>
+            <div class="dashboard-card" id="open-shortages-btn">
+                <div class="card-icon-wrapper bg-orange-light text-orange"><i class="fa-solid fa-cart-shopping"></i></div>
+                <div class="card-text"><h3>الأصناف الناقصة</h3><p>متابعة وتسجيل النواقص</p></div>
+            </div>
+            
+            <div class="dashboard-card card-sync">
+                <div class="card-icon-wrapper bg-gray-light text-gray-dark"><i class="fab fa-github"></i></div>
+                <div class="card-text">
+                    <h3>المزامنة السحابية</h3>
+                    <div class="sync-controls">
+                        <div class="sync-status">
+                            <span id="sync-status-text">المزامنة متوقفة</span>
+                            <i id="sync-status-icon" class="fa-solid fa-power-off"></i>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="auto-sync-toggle">
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="manual-sync-buttons">
+                    <button id="github-save-btn" class="btn btn-icon-only" title="حفظ يدوي للسحابة"><i class="fa-solid fa-cloud-arrow-up"></i></button>
+                    <button id="github-load-btn" class="btn btn-icon-only" title="استعادة من السحابة"><i class="fa-solid fa-cloud-arrow-down"></i></button>
+                </div>
+            </div>
+
+            <div class="dashboard-card" id="backup-data-btn">
+                <div class="card-icon-wrapper bg-gray-light text-gray-dark"><i class="fa-solid fa-download"></i></div>
+                <div class="card-text"><h3>نسخ احتياطي محلي</h3><p>حفظ البيانات كملف على جهازك</p></div>
+            </div>
+            <div class="dashboard-card" id="import-data-btn">
+                 <div class="card-icon-wrapper bg-gray-light text-gray-dark"><i class="fa-solid fa-upload"></i></div>
+                <div class="card-text"><h3>استيراد محلي</h3><p>استعادة البيانات من ملف</p></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- شاشة إدارة الأدوية -->
+    <div id="medicines-view" class="view">
+        <header class="view-header">
+            <button class="back-btn"><i class="fa-solid fa-arrow-right"></i></button>
+            <h2 class="title-blue"><i class="fa-solid fa-pills"></i> الخط الزمني لانتهاء الصلاحية</h2>
+            <div class="header-actions">
+                <div class="controls search-controls">
+                    <i class="fa-solid fa-search"></i>
+                    <input type="search" id="search-medicines-input" placeholder="ابحث عن دواء، باركود، تاريخ..." dir="rtl">
+                </div>
+                <button id="show-add-medicine-modal-btn" class="btn btn-primary"><i class="fa-solid fa-plus"></i> إضافة دواء</button>
+            </div>
+        </header>
+        <main class="view-main"><div id="medicine-timeline-container" class="timeline-container"></div></main>
+    </div>
+
+    <!-- شاشة إدارة الديون -->
+    <div id="debts-view" class="view">
+        <header class="view-header">
+            <button class="back-btn"><i class="fa-solid fa-arrow-right"></i></button>
+            <h2 class="title-red"><i class="fa-solid fa-hand-holding-dollar"></i> سجل الديون</h2>
+            <div class="header-actions">
+                <button id="add-new-debt-btn" class="btn btn-red-action"><i class="fa-solid fa-plus"></i> إضافة دين جديد</button>
+                <button id="open-debt-archive-btn" class="btn btn-primary"><i class="fa-solid fa-trash-restore"></i> سلة المحذوفات</button>
+            </div>
+        </header>
+        <main class="view-main">
+            <div class="summary-bar"><h3>إجمالي الديون المستحقة: <span id="total-debts-amount">0.00 شيكل</span></h3></div>
+            <div class="controls"><i class="fa-solid fa-search"></i><input type="search" id="search-debts-input" placeholder="ابحث عن عميل، مبلغ، تاريخ، أو ملاحظات..."></div>
+            <div id="debt-list-container" class="debt-cards-container"></div>
+        </main>
+    </div>
+    
+    <!-- شاشة الأصناف الناقصة -->
+    <div id="shortages-view" class="view">
+        <header class="view-header">
+            <button class="back-btn"><i class="fa-solid fa-arrow-right"></i></button>
+            <h2 class="title-orange"><i class="fa-solid fa-cart-shopping"></i> الأصناف الناقصة</h2>
+            <div class="header-actions">
+                <button id="delete-selected-shortages-btn" class="btn btn-red-action hidden" title="حذف المحدد"><i class="fa-solid fa-trash-can"></i> حذف المحدد</button>
+                <button id="show-add-shortage-modal-btn" class="btn btn-orange-action"><i class="fa-solid fa-plus"></i> إضافة صنف</button>
+            </div>
+        </header>
+        <main class="view-main">
+            <div class="controls"><i class="fa-solid fa-search"></i><input type="search" id="search-shortages-input" placeholder="ابحث عن صنف أو ملاحظات..."></div>
+            <div id="shortage-list-container" class="list-container"></div>
+        </main>
+    </div>
+
+    <!-- Modals (النوافذ المنبثقة) -->
+    <input type="file" id="import-file-input" accept=".json" style="display: none;">
+    <div id="add-medicine-modal" class="modal"><div class="modal-content"><span class="close-btn">×</span><h3>إضافة دواء جديد</h3><form id="add-medicine-form"><div class="form-group"><label>اسم الدواء:</label><input type="text" id="med-name" required></div><div class="form-group barcode-group"><label>الباركود (اختياري):</label><input type="text" id="med-barcode"><button type="button" id="scan-barcode-btn" class="barcode-btn"><i class="fa-solid fa-barcode"></i></button></div><div class="form-group"><label>تاريخ الانتهاء:</label><input type="date" id="med-expiry" required></div><div class="form-group"><label>سعر البيع (شيكل):</label><input type="number" id="med-price" step="0.01" min="0" required></div><button type="submit" class="btn btn-primary form-full-width">إضافة الدواء</button></form></div></div>
+    <div id="add-debt-modal" class="modal"><div class="modal-content"><span class="close-btn">×</span><h3>إضافة دين جديد</h3><form id="add-debt-form"><div class="form-group"><label>اسم العميل:</label><input type="text" id="debt-customer" required></div><div class="form-group"><label>قيمة الدين (شيكل):</label><input type="number" id="debt-amount" step="0.01" required min="0"></div><div class="form-group form-full-width"><label>تاريخ الدين:</label><input type="date" id="debt-date" required></div><div class="form-group form-full-width"><label>ملاحظات (اختياري):</label><textarea id="debt-details" rows="3" placeholder="مثال: فاتورة رقم 123، دواء معين..."></textarea></div><button type="submit" class="btn btn-red-action form-full-width">إضافة الدين</button></form></div></div>
+    <div id="add-payment-modal" class="modal"><div class="modal-content"><span class="close-btn">×</span><h3>تسجيل دفعة جديدة</h3><form id="add-payment-form"><input type="hidden" id="payment-customer-name"><div class="form-group"><label>العميل:</label><input type="text" id="payment-customer-display" disabled></div><div class="form-group"><label>قيمة الدفعة (شيكل):</label><input type="number" id="payment-amount" step="0.01" required min="0"></div><div class="form-group form-full-width"><label>تاريخ الدفعة:</label><input type="date" id="payment-date" required></div><div class="form-group form-full-width"><label>ملاحظات (اختياري):</label><textarea id="payment-details" rows="3"></textarea></div><button type="submit" class="btn btn-green-action form-full-width">تسجيل الدفعة</button></form></div></div>
+    <div id="add-shortage-modal" class="modal"><div class="modal-content"><span class="close-btn">×</span><h3>إضافة صنف ناقص</h3><form id="add-shortage-form"><div class="form-group form-full-width"><label>اسم الصنف:</label><input type="text" id="shortage-name" required></div><div class="form-group form-full-width"><label>ملاحظات (اختياري):</label><textarea id="shortage-notes" rows="3" placeholder="مثال: مطلوب من شركة X، طلبه الدكتور Y..."></textarea></div><button type="submit" class="btn btn-orange-action form-full-width">إضافة للقائمة</button></form></div></div>
+    
+    <!-- نافذة سلة المحذوفات للديون -->
+    <div id="debt-archive-modal" class="modal">
+        <div class="modal-content modal-lg">
+            <span class="close-btn">×</span>
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-trash-restore"></i> سلة محذوفات الديون</h3>
+                <button id="clear-archive-btn" class="btn btn-red-action"><i class="fa-solid fa-trash-can"></i> تفريغ السلة</button>
+            </div>
+            <div id="debt-archive-list" class="archive-list">
+                <!-- المحتوى الديناميكي -->
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
